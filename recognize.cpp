@@ -23,18 +23,23 @@ int main(){
 
     int index = 0;
     string tmp_str;
+    getline(fp, tmp_str);
     while(getline(fp, tmp_str)){
-        U->data[index++] = atof(tmp_str.c_str());
+        U->data[index] = atof(tmp_str.c_str());
+        index++;
     }
     fp.close();
 
+
+
     // load mat average face
     ifstream fp2 ("average_face.mat", ios::in);
-    fp2 >> row;
+    fp2 >> row >> col;
 
-    Mat* average_face_mat = new Mat(row, 1);
+    Mat* average_face_mat = new Mat(row, col);
 
     index = 0;
+    getline(fp2, tmp_str);
     while(getline(fp2, tmp_str)){
         average_face_mat->data[index++] = atof(tmp_str.c_str());
     }
@@ -47,13 +52,14 @@ int main(){
     Mat* face_set_mat = new Mat(row, col);
 
     index = 0;
+    getline(fp3, tmp_str);
     while(getline(fp3, tmp_str)){
         face_set_mat->data[index++] = atof(tmp_str.c_str());
     }
     fp3.close();
 
     // load a new face
-    ifstream fp4 ("centered/18.pgm", ios::in | ios::binary);
+    ifstream fp4 ("rand.pgm", ios::in | ios::binary);
     unsigned char new_face[PICMATSIZE];
     for(int i = 0; i < 4; i++){
         getline(fp4, tmp_str);
@@ -72,7 +78,7 @@ int main(){
 
     // face_set_mat->col represents the number of faces in the training set
     for(int i = 0; i < face_set_mat->col; i++){
-        Mat* tmp_mat = face_set_mat->GetCol(i);
+        Mat* tmp_mat = face_set_mat->GetCol(i + 1);
         Mat* tmp_mat_2 = Sub(tmp_mat, average_face_mat);
         Mat* tmp_omiga = Mul(Ut, tmp_mat_2);
         cout << EDistance(tmp_omiga, omiga_new_face) << endl;

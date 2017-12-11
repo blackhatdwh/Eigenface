@@ -41,19 +41,7 @@ int main(){
         ReadOnePic(&fp, (char*)face_set[i]);
         fp.close();
     }
-
-    // calculate average face
-    int average_face[PICMATSIZE];
-    for(int i = 0; i < PICMATSIZE; i++){
-        average_face[i] = 0;
-    }
-    for(int i = 0; i < PICMATSIZE; i++){
-        for(int j = 0; j < PICSETSIZE; j++){
-            average_face[i] += face_set[j][i];
-        }
-        average_face[i] /= PICSETSIZE;
-    }
-
+    
     // convert face set into a matrix
     // face set matrix PICMATSIZE * PICSETSIZE
     Mat face_set_mat (PICMATSIZE, PICSETSIZE);
@@ -63,20 +51,35 @@ int main(){
         }
     }
 
-    // diff
-    Mat diff_mat (PICMATSIZE, PICSETSIZE);
+    // calculate average face
+    int average_face[PICMATSIZE];
+    Mat average_face_vec (PICMATSIZE, 1);
+    for(int i = 0; i < PICMATSIZE; i++){        // all set to 0
+        average_face[i] = 0;
+    }
+    for(int i = 0; i < PICMATSIZE; i++){
+        for(int j = 0; j < PICSETSIZE; j++){
+            average_face[i] += face_set[j][i];
+        }
+        average_face[i] /= PICSETSIZE;
+        average_face_vec.SetElement(average_face[i], i + 1, 1);
+    }
+
+
+    // diff(A)
+    Mat* diff_mat = new Mat(PICMATSIZE, PICSETSIZE);
     for(int i = 0; i < PICSETSIZE; i++){
         for(int j = 0; j < PICMATSIZE; j++){
-            diff_mat.SetElement(face_set[i][j] - average_face[j], j + 1, i + 1);
+            diff_mat->SetElement(face_set_mat.GetElement(j + 1, i + 1) - average_face_vec.GetElement(j + 1, 1), j + 1, i + 1);
         }
     }
     // diff^T
-    Mat* t_diff_mat = T(&diff_mat);
+    Mat* t_diff_mat = T(diff_mat);
     // AT * A
-    Mat* AtA = Mul(t_diff_mat, &diff_mat);
+    Mat* AtA = Mul(t_diff_mat, diff_mat);
 
 
-    // using Eigen to solve eigenvectors
+    // using Eigen
     MatrixXd AtA_eigen = Map<Matrix<double, PICSETSIZE, PICSETSIZE, RowMajor> >(AtA->data);   // load AtA into Eigen matrix
     EigenSolver<MatrixXd> es(AtA_eigen);
     //cout << "eigenvalues: " << endl << es.eigenvalues() << endl;
@@ -84,7 +87,7 @@ int main(){
     // end
 
 
-    // sort
+    // calculate eigenvalues and eigenvectors
     double eigenvalues[PICSETSIZE];
     Mat* raw_eigenvector_vec[PICSETSIZE];       // eigenvectors of AtA
     Mat* eigenvector_vec[PICSETSIZE];           // eigenvectors of AAt
@@ -95,11 +98,14 @@ int main(){
             double tmp = es.eigenvectors().col(i)[j].real();
             raw_eigenvector_vec[i]->SetElement(tmp, j + 1, 1);
         }
-        eigenvector_vec[i] = Mul(&face_set_mat, raw_eigenvector_vec[i]);        // calculate the eigenvectors of AAt
+        //eigenvector_vec[i] = Mul(&face_set_mat, raw_eigenvector_vec[i]);        // calculate the eigenvectors of AAt
+        eigenvector_vec[i] = Mul(diff_mat, raw_eigenvector_vec[i]);        // calculate the eigenvectors of AAt
         eigenvalues[i] = es.eigenvalues()(i).real();        // store the corresponding eigenvalues into an array
         value_corresponding_vector[eigenvalues[i]] = eigenvector_vec[i];        // setup the link between eigenvalue and eigenvector
         delete raw_eigenvector_vec[i];
     }
+
+    // sort
     vector<double> sorted_eigenvalues (eigenvalues, eigenvalues + PICSETSIZE);
     sort(sorted_eigenvalues.begin(), sorted_eigenvalues.begin() + PICSETSIZE);
     reverse(sorted_eigenvalues.begin(), sorted_eigenvalues.begin() + PICSETSIZE);       // sort eigenvalues in descending order
@@ -107,7 +113,6 @@ int main(){
     for(int i = 0; i < PICSETSIZE * (1 - BIGGEST_PERCENTAGE); i++){
         sorted_eigenvalues.pop_back();
     }
-
 
     // normalize
     for(int i = 0; i < sorted_eigenvalues.size(); i++){
@@ -122,25 +127,26 @@ int main(){
         }
     }
 
+
     // final step, setup U, the matrix constructed by all retained eigenvectors
     // PICMATSIZE * (PICSETSIZE * BIGGEST_PERCENTAGE)
-    Mat U (PICMATSIZE, PICSETSIZE * BIGGEST_PERCENTAGE);
-    for(int i = 0; i < PICSETSIZE * BIGGEST_PERCENTAGE; i++){
+    Mat U (PICMATSIZE, sorted_eigenvalues.size());
+    for(int i = 0; i < sorted_eigenvalues.size(); i++){
         for(int j = 0; j < PICMATSIZE; j++){
             double tmp = value_corresponding_vector[sorted_eigenvalues[i]]->GetElement(j + 1, 1);
-            U.SetElement(tmp, j + 1, i);
+            U.SetElement(tmp, j + 1, i + 1);
         }
     }
-
+    U.ShowElements();
 
 
     
     // store average face on disk
     ofstream wfp ("average_face.mat", ios::out);
-    string tmp_string = to_string(PICMATSIZE) + "\n";
+    string tmp_string = to_string(average_face_vec.row) + " " + to_string(average_face_vec.col) + "\n";
     wfp << tmp_string;
-    for(int i = 0; i < PICMATSIZE; i++){
-        wfp << average_face[i] << endl;
+    for(int i = 0; i < average_face_vec.row * average_face_vec.col; i++){
+        wfp << average_face_vec.data[i] << endl;
     }
     wfp.close();
 
@@ -163,6 +169,10 @@ int main(){
     wfp3.close();
 
     
+
+
+
+
     /*
     // calcuate one eigenface
     Mat eigenvector_mat (PICSETSIZE, 1);
