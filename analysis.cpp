@@ -7,6 +7,7 @@
 
 #include <stdio.h>
 #include <math.h>
+#include "mat.h"
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -15,89 +16,11 @@
 #define PICROW 195      // how may rows does a picture has
 #define PICCOL 231      // how may cols does a picture has
 #define PICMATSIZE 45045        // rows * cols
-#define PICSETSIZE 10       // how many pictures are there in the training set
+#define PICSETSIZE 15       // how many pictures are there in the training set
 #define BIGGEST_PERCENTAGE 0.7      // retain how many eigenvectors
 
 using namespace Eigen;
 using namespace std;
-
-class Mat {
-public:
-    double* data;
-    int row;
-    int col;
-    Mat(){
-        data = nullptr;
-        row = 0;
-        col = 0;
-    }
-    Mat(double* data, int row, int col){
-        this->data = data;
-        this->row = row;
-        this->col = col;
-    }
-    Mat(int row, int col){
-        this->row = row;
-        this->col = col;
-        double* data = (double*)malloc(row * col * sizeof(double));
-        this->data = data;
-    }
-    // y, x start from 1
-    double GetElement(int y, int x){
-        return data[col * (y - 1) + (x - 1)];
-    }
-    void SetElements(double* data, int row, int col){
-        this->data = data;
-        this->row = row;
-        this->col = col;
-    }
-    void SetElement(double var, int y, int x){
-        data[col * (y - 1) + (x - 1)] = var;
-    }
-    void ShowElements(){
-        for(int i = 0; i < this->row; i++){
-            for(int j = 0; j < this->col; j++){
-                printf("%f ", this->GetElement(i + 1, j + 1));
-            }
-            printf("\n");
-        }
-    }
-};
-
-Mat* Mul(Mat* A, Mat* B){
-    if(A->col != B->row){
-        cout << "FATAL ERROR!" << endl;
-        exit(0);
-    }
-
-    Mat* result = (Mat*)malloc(sizeof(Mat));
-    double* data = (double*)malloc(A->row * B->col * sizeof(double));
-    result->SetElements(data, A->row, B->col);
-
-    for(int i = 0; i < A->row; i++){
-        for(int j = 0; j < B->col; j++){
-            double tmp = 0;
-            for(int k = 0; k < A->col; k++){
-                tmp += A->GetElement(i + 1, k + 1) * B->GetElement(k + 1, j + 1);
-            }
-            result->SetElement(tmp, i + 1, j + 1);
-        }
-    }
-    return result;
-}
-
-Mat* T(Mat* A){
-    Mat* result = (Mat*)malloc(sizeof(Mat));
-    double* data = (double*)malloc(A->row * A->col * sizeof(double));
-    result->SetElements(data, A->col, A->row);
-    for(int i = 0; i < A->row; i++){
-        for(int j = 0; j < A->col; j++){
-            double tmp = A->GetElement(i + 1, j + 1);
-            result->SetElement(tmp, j + 1, i + 1);
-        }
-    }
-    return result;
-}
 
 void ReadOnePic(ifstream* pic, char* result){
     string skip;
@@ -109,26 +32,29 @@ void ReadOnePic(ifstream* pic, char* result){
 }
 
 int main(){
+    // load PICSETSIZE faces into a 2d array face set
     unsigned char face_set[PICSETSIZE][PICMATSIZE];
     for(int i = 0; i < PICSETSIZE; i++){
         char dir[20];
-        sprintf(dir, "centered/%d.pgm", i);
+        sprintf(dir, "testset/%d.pgm", i);
         ifstream fp (dir, ios::in | ios::binary);
         ReadOnePic(&fp, (char*)face_set[i]);
         fp.close();
     }
 
-    int int_average_face[PICMATSIZE];
+    // calculate average face
+    int average_face[PICMATSIZE];
     for(int i = 0; i < PICMATSIZE; i++){
-        int_average_face[i] = 0;
+        average_face[i] = 0;
     }
     for(int i = 0; i < PICMATSIZE; i++){
         for(int j = 0; j < PICSETSIZE; j++){
-            int_average_face[i] += face_set[j][i];
+            average_face[i] += face_set[j][i];
         }
-        int_average_face[i] /= PICSETSIZE;
+        average_face[i] /= PICSETSIZE;
     }
 
+    // convert face set into a matrix
     // face set matrix PICMATSIZE * PICSETSIZE
     Mat face_set_mat (PICMATSIZE, PICSETSIZE);
     for(int i = 0; i < PICSETSIZE; i++){
@@ -141,7 +67,7 @@ int main(){
     Mat diff_mat (PICMATSIZE, PICSETSIZE);
     for(int i = 0; i < PICSETSIZE; i++){
         for(int j = 0; j < PICMATSIZE; j++){
-            diff_mat.SetElement(face_set[i][j] - int_average_face[j], j + 1, i + 1);
+            diff_mat.SetElement(face_set[i][j] - average_face[j], j + 1, i + 1);
         }
     }
     // diff^T
@@ -206,14 +132,36 @@ int main(){
         }
     }
 
-    // store U on disk
-    ofstream wfp ("U.mat", ios::out);
-    string tmp_string = to_string(U.row) + " " + to_string(U.col) + "\n";
+
+
+    
+    // store average face on disk
+    ofstream wfp ("average_face.mat", ios::out);
+    string tmp_string = to_string(PICMATSIZE) + "\n";
     wfp << tmp_string;
-    for(int i = 0; i < U.row * U.col; i++){
-        wfp << U.data[i] << endl;
+    for(int i = 0; i < PICMATSIZE; i++){
+        wfp << average_face[i] << endl;
     }
     wfp.close();
+
+    // store U on disk
+    ofstream wfp2 ("U.mat", ios::out);
+    tmp_string = to_string(U.row) + " " + to_string(U.col) + "\n";
+    wfp2 << tmp_string;
+    for(int i = 0; i < U.row * U.col; i++){
+        wfp2 << U.data[i] << endl;
+    }
+    wfp2.close();
+
+    // store face_set_mat on disk
+    ofstream wfp3 ("face_set.mat", ios::out);
+    tmp_string = to_string(face_set_mat.row) + " " + to_string(face_set_mat.col) + "\n";
+    wfp3 << tmp_string;
+    for(int i = 0; i < face_set_mat.row * face_set_mat.col; i++){
+        wfp3 << face_set_mat.data[i] << endl;
+    }
+    wfp3.close();
+
     
     /*
     // calcuate one eigenface
