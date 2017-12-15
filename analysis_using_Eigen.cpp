@@ -12,13 +12,14 @@
 #include <fstream>
 #include <vector>
 #include <map>
-#include <algorithm>
+#include <Eigen/Dense>
 #define PICROW 195      // how may rows does a picture has
 #define PICCOL 231      // how may cols does a picture has
 #define PICMATSIZE 45045        // rows * cols
 #define PICSETSIZE 15       // how many pictures are there in the training set
 #define BIGGEST_PERCENTAGE 0.7      // retain how many eigenvectors
 
+using namespace Eigen;
 using namespace std;
 
 void ReadOnePic(ifstream* pic, char* result){
@@ -78,8 +79,12 @@ int main(){
     Mat* AtA = Mul(t_diff_mat, diff_mat);
 
 
-
-    MyEigen ME = GetEigen(AtA);
+    // using Eigen
+    MatrixXd AtA_eigen = Map<Matrix<double, PICSETSIZE, PICSETSIZE, RowMajor> >(AtA->data);   // load AtA into Eigen matrix
+    EigenSolver<MatrixXd> es(AtA_eigen);
+    //cout << "eigenvalues: " << endl << es.eigenvalues() << endl;
+    //cout << "eigenvectors: " << endl << es.eigenvectors() << endl;
+    // end
 
 
     // calculate eigenvalues and eigenvectors
@@ -90,11 +95,12 @@ int main(){
     for(int i = 0; i < PICSETSIZE; i++){
         raw_eigenvector_vec[i] = new Mat (PICSETSIZE, 1);       // use a new matrix(vector) to store one of the raw eigenvectors
         for(int j = 0; j < PICSETSIZE; j++){
-            double tmp = ME.EVector[i * PICSETSIZE + j];
+            double tmp = es.eigenvectors().col(i)[j].real();
             raw_eigenvector_vec[i]->SetElement(tmp, j + 1, 1);
         }
+        //eigenvector_vec[i] = Mul(&face_set_mat, raw_eigenvector_vec[i]);        // calculate the eigenvectors of AAt
         eigenvector_vec[i] = Mul(diff_mat, raw_eigenvector_vec[i]);        // calculate the eigenvectors of AAt
-        eigenvalues[i] = ME.EValue[i];        // store the corresponding eigenvalues into an array
+        eigenvalues[i] = es.eigenvalues()(i).real();        // store the corresponding eigenvalues into an array
         value_corresponding_vector[eigenvalues[i]] = eigenvector_vec[i];        // setup the link between eigenvalue and eigenvector
         delete raw_eigenvector_vec[i];
     }
@@ -131,6 +137,7 @@ int main(){
             U.SetElement(tmp, j + 1, i + 1);
         }
     }
+    U.ShowElements();
 
 
     
