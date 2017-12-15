@@ -11,6 +11,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
+#include <map>
+
+struct MyEigen
+{
+	double* EValue;
+	double* EVector;
+};
 
 class Mat {
 public:
@@ -34,5 +41,6 @@ Mat* Mul(Mat* A, Mat* B);
 Mat* Sub(Mat* A, Mat* B);
 Mat* T(Mat* A);
 double EDistance(Mat* A, Mat* B);
-
+bool JacbiCor(double * pMatrix,int nDim, double *pdblVects, double *pdbEigenValues, double dbEps,int nJt);
+MyEigen GetEigen(Mat* A);
 #endif /* !MAT_H */
